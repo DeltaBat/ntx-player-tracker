@@ -23,14 +23,15 @@ Cloud-hosted Google Sheet that tracks each NTX player's Rocket League grind hour
 
 ```sh
 npm install
-cp .env.example .env.local
-# Fill in SHEET_ID and GOOGLE_SERVICE_ACCOUNT_JSON in .env.local
+copy .env.local.example .env.local
+# Fill in SHEET_ID, GOOGLE_SERVICE_ACCOUNT_PATH (or _JSON), and STEAM_API_KEY in .env.local
 node --env-file=.env.local --import tsx src/index.ts
 ```
 
+For the unattended hourly setup (Windows Task Scheduler running locally — current bridge until TRN API approves), see `docs/setup/05-local-run.md`.
+
 ## What's coming
 
-- Plan 2: Steam integration (hours, profile basics, watchlist apps)
 - Plan 3: Ballchasing + replay-based mechanics + coverage indicator
 - Plan 4: Manual tabs (Tryouts paste-URL flow, Sessions log, Goals tracker)
 
