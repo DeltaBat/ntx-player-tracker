@@ -1,36 +1,38 @@
 // tests/tracker-client.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchTrackerProfile } from '../src/tracker/client.js';
+import { describe, it, expect, vi } from 'vitest';
+import { fetchTrackerProfile, type CurlRunner } from '../src/tracker/client.js';
 
 describe('fetchTrackerProfile', () => {
-  beforeEach(() => vi.restoreAllMocks());
+  it('invokes runner with the api.tracker.gg URL and required headers', async () => {
+    const runner: CurlRunner = vi.fn().mockResolvedValue({
+      stdout: '{"data":{"platformInfo":{"platformSlug":"epic"}}}',
+    });
 
-  it('sends a realistic Chrome User-Agent', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('<html></html>', { status: 200 })
-    );
+    await fetchTrackerProfile({ platform: 'epic', trackerId: 'fade.シ' }, runner);
 
-    await fetchTrackerProfile({ platform: 'epic', trackerId: 'Squishy' });
-
-    expect(fetchSpy).toHaveBeenCalledOnce();
-    const init = fetchSpy.mock.calls[0]![1] as RequestInit;
-    const headers = init.headers as Record<string, string>;
-    expect(headers['User-Agent']).toMatch(/Chrome\/\d+/);
-    expect(headers['Accept-Language']).toBe('en-US,en;q=0.9');
+    expect(runner).toHaveBeenCalledOnce();
+    const args = (runner as any).mock.calls[0][0] as string[];
+    expect(args.some(a => a.includes('api.tracker.gg/api/v2/rocket-league/standard/profile/epic/'))).toBe(true);
+    expect(args.some(a => a.includes(encodeURIComponent('fade.シ')))).toBe(true);
+    expect(args).toContain('Origin: https://rocketleague.tracker.network');
+    expect(args).toContain('Accept: application/json');
   });
 
-  it('throws on Cloudflare 403', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('blocked', { status: 403 }));
+  it('returns runner stdout on success', async () => {
+    const runner: CurlRunner = vi.fn().mockResolvedValue({
+      stdout: '{"data":{"platformInfo":{}}}',
+    });
+    const body = await fetchTrackerProfile({ platform: 'epic', trackerId: 'x' }, runner);
+    expect(body).toContain('platformInfo');
+  });
+
+  it('wraps and rethrows runner failures', async () => {
+    const err: any = new Error('curl exit 22');
+    err.code = 22;
+    err.stdout = 'blocked by cloudflare';
+    const runner: CurlRunner = vi.fn().mockRejectedValue(err);
     await expect(
-      fetchTrackerProfile({ platform: 'epic', trackerId: 'Squishy' })
-    ).rejects.toThrow(/403/);
-  });
-
-  it('returns response body on 200', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('<html>profile</html>', { status: 200 })
-    );
-    const body = await fetchTrackerProfile({ platform: 'epic', trackerId: 'Squishy' });
-    expect(body).toContain('profile');
+      fetchTrackerProfile({ platform: 'epic', trackerId: 'x' }, runner)
+    ).rejects.toThrow(/curl tracker fetch failed/);
   });
 });
