@@ -1,12 +1,14 @@
 // google-apps-script/assembler.gs
-// Reads latest Snapshots_Tracker rows and renders one card block per player onto Today.
+// Reads latest Snapshots_Tracker + Snapshots_Steam rows and renders one card block per player onto Today.
 // Install a 5-minute time-driven trigger pointing at `assemble`.
 
 var PLAYLIST_ORDER = ['1s', '2s', '3s'];
+var WATCHLIST_LABELS = { 252950: 'RL', 824270: 'Kovaak', 714010: 'AimLab' };
 
 function assemble() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var snapshots = ss.getSheetByName('Snapshots_Tracker');
+  var steamSnaps = ss.getSheetByName('Snapshots_Steam');
   var roster = ss.getSheetByName('Roster');
   var today = ss.getSheetByName('Today');
   var config = ss.getSheetByName('Config');
@@ -15,14 +17,11 @@ function assemble() {
   var rosterRows = roster.getDataRange().getValues();
   var snapRows = snapshots.getDataRange().getValues();
   if (snapRows.length < 2) return;
-
-  var rosterHeader = rosterRows[0];
   var snapHeader = snapRows[0];
-
-  var rosterIdx = headerMap(rosterHeader);
   var snapIdx = headerMap(snapHeader);
+  var rosterIdx = headerMap(rosterRows[0]);
 
-  // Group snapshots by (playerId, playlist), keep the two most recent (latest + ≥24h prior)
+  // Group tracker snapshots by (playerId, playlist)
   var grouped = {};
   for (var i = 1; i < snapRows.length; i++) {
     var r = snapRows[i];
@@ -34,14 +33,41 @@ function assemble() {
       division: r[snapIdx.division],
       mmr: Number(r[snapIdx.mmr]),
       games: Number(r[snapIdx.games_played_season]),
-      wins: Number(r[snapIdx.wins_season]),
       winStreak: Number(r[snapIdx.win_streak]),
-      matchesJson: r[snapIdx.recent_matches_json],
     });
   }
   Object.keys(grouped).forEach(function (k) {
     grouped[k].sort(function (a, b) { return b.ts.getTime() - a.ts.getTime(); });
   });
+
+  // Group Steam snapshots by playerId (latest per player)
+  var steamByPlayer = {};
+  if (steamSnaps) {
+    var steamRows = steamSnaps.getDataRange().getValues();
+    if (steamRows.length >= 2) {
+      var steamIdx = headerMap(steamRows[0]);
+      var latestByPlayer = {};
+      for (var s = 1; s < steamRows.length; s++) {
+        var sr = steamRows[s];
+        var pid = sr[steamIdx.player_id];
+        var ts = new Date(sr[steamIdx.timestamp_utc]).getTime();
+        if (!latestByPlayer[pid] || latestByPlayer[pid].ts < ts) {
+          latestByPlayer[pid] = {
+            ts: ts,
+            visibility: sr[steamIdx.profile_visibility],
+            vac: Number(sr[steamIdx.vac_ban_count]),
+            watchlistJson: sr[steamIdx.watchlist_playtime_json],
+          };
+        }
+      }
+      Object.keys(latestByPlayer).forEach(function (pid) {
+        var v = latestByPlayer[pid];
+        var entries = [];
+        try { entries = JSON.parse(v.watchlistJson) || []; } catch (e) { entries = []; }
+        steamByPlayer[pid] = { visibility: v.visibility, vac: v.vac, entries: entries };
+      });
+    }
+  }
 
   today.clearContents();
   today.getRange(1, 1).setValue('NTX Player Grind · last refresh ' + new Date().toISOString());
@@ -54,6 +80,7 @@ function assemble() {
     var displayName = rr[rosterIdx.displayName];
 
     var card = [['Player', displayName, '', '', '', '']];
+
     for (var pi = 0; pi < PLAYLIST_ORDER.length; pi++) {
       var pl = PLAYLIST_ORDER[pi];
       var data = grouped[playerId + '|' + pl] || [];
@@ -67,11 +94,32 @@ function assemble() {
       var rankCell = latest.rank + (latest.division ? ' ' + latest.division : '');
       card.push([pl, rankCell, latest.mmr, formatDelta(delta24), latest.games || 0, statusEmoji(latest, delta24)]);
     }
+
+    // Steam row
+    var steam = steamByPlayer[playerId];
+    if (steam) {
+      var marker = (steam.visibility === 'private' || steam.visibility === 'unknown') ? '🔒' : '✓';
+      var hoursParts = [];
+      var twoWeekTotal = 0;
+      steam.entries.forEach(function (e) {
+        var label = WATCHLIST_LABELS[e.appId] || String(e.appId);
+        var hoursForever = Math.round(e.playtimeForeverMin / 60);
+        hoursParts.push(label + ' ' + hoursForever + 'h');
+        twoWeekTotal += (e.playtimeTwoWeeksMin || 0);
+      });
+      var twoWeekHours = (twoWeekTotal / 60).toFixed(1);
+      var bans = steam.vac > 0 ? ('⚠ VAC×' + steam.vac) : '';
+      card.push(['Steam', marker, hoursParts.join(' · '), '2w: ' + twoWeekHours + 'h', bans, '']);
+    } else {
+      card.push(['Steam', '—', 'no data', '', '', '']);
+    }
+
     today.getRange(row, 1, card.length, 6).setValues(card);
     row += card.length + 1;
   }
 
   setConfig(config, 'tracker_last_run_utc', new Date().toISOString());
+  setConfig(config, 'steam_last_run_utc', new Date().toISOString());
 }
 
 function headerMap(header) {
