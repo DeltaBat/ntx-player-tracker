@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { loadConfig } from '../src/config.js';
 
-const ENV_KEYS = ['GOOGLE_SERVICE_ACCOUNT_JSON', 'SHEET_ID'];
+const ENV_KEYS = ['GOOGLE_SERVICE_ACCOUNT_JSON', 'GOOGLE_SERVICE_ACCOUNT_PATH', 'SHEET_ID', 'STEAM_API_KEY'];
 
 describe('loadConfig', () => {
   const originalEnv: Record<string, string | undefined> = {};
@@ -36,5 +36,17 @@ describe('loadConfig', () => {
     process.env.GOOGLE_SERVICE_ACCOUNT_JSON = 'not json';
     process.env.SHEET_ID = '1abc';
     expect(() => loadConfig()).toThrow(/not valid JSON/);
+  });
+
+  it('exposes STEAM_API_KEY when present, null otherwise', () => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = '{"client_email":"x","private_key":"y"}';
+    process.env.SHEET_ID = '1abc';
+
+    let cfg = loadConfig();
+    expect(cfg.steamApiKey).toBeNull();
+
+    process.env.STEAM_API_KEY = 'STEAM-KEY-123';
+    cfg = loadConfig();
+    expect(cfg.steamApiKey).toBe('STEAM-KEY-123');
   });
 });
