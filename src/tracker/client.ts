@@ -13,7 +13,11 @@ export interface FetchTrackerInput {
 
 export async function fetchTrackerProfile({ platform, trackerId }: FetchTrackerInput): Promise<string> {
   const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]!;
-  const url = `https://rocketleague.tracker.network/rocket-league/profile/${platform}/${encodeURIComponent(trackerId)}/overview`;
+  const targetUrl = `https://rocketleague.tracker.network/rocket-league/profile/${platform}/${encodeURIComponent(trackerId)}/overview`;
+  const proxyKey = process.env.SCRAPERAPI_KEY;
+  const url = proxyKey
+    ? `https://api.scraperapi.com/?api_key=${proxyKey}&url=${encodeURIComponent(targetUrl)}&country_code=us`
+    : targetUrl;
   const res = await fetch(url, {
     headers: {
       'User-Agent': ua,
