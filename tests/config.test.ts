@@ -35,6 +35,6 @@ describe('loadConfig', () => {
   it('throws when service account JSON malformed', () => {
     process.env.GOOGLE_SERVICE_ACCOUNT_JSON = 'not json';
     process.env.SHEET_ID = '1abc';
-    expect(() => loadConfig()).toThrow(/GOOGLE_SERVICE_ACCOUNT_JSON/);
+    expect(() => loadConfig()).toThrow(/not valid JSON/);
   });
 });
