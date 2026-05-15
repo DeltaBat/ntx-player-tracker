@@ -9,6 +9,7 @@ export interface ServiceAccount {
 export interface Config {
   sheetId: string;
   serviceAccount: ServiceAccount;
+  steamApiKey: string | null;
 }
 
 export function loadConfig(): Config {
@@ -39,5 +40,8 @@ export function loadConfig(): Config {
   if (!serviceAccount.client_email || !serviceAccount.private_key) {
     throw new Error('service account JSON missing client_email or private_key');
   }
-  return { sheetId, serviceAccount };
+
+  const steamApiKey = process.env.STEAM_API_KEY?.trim() || null;
+
+  return { sheetId, serviceAccount, steamApiKey };
 }
