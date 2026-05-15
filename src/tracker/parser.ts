@@ -1,5 +1,4 @@
 // src/tracker/parser.ts
-import * as cheerio from 'cheerio';
 import {
   ParseError,
   type Platform,
@@ -15,43 +14,29 @@ const PLAYLIST_LABELS: Record<string, Playlist> = {
   'Ranked Standard 3v3': '3s',
 };
 
-interface NextDataShape {
-  props?: {
-    pageProps?: {
-      profile?: {
-        platformInfo?: { platformSlug?: string; platformUserIdentifier?: string };
-        segments?: Array<{
-          type: string;
-          attributes?: { playlist?: string };
-          metadata?: { name?: string };
-          stats?: Record<string, { value?: number; displayValue?: string }>;
-        }>;
-        recentMatches?: Array<{
-          id?: string;
-          timestamp?: string;
-          playlist?: string;
-          result?: string;
-          mmrDelta?: number;
-        }>;
-      };
-    };
+interface ApiSegment {
+  type?: string;
+  metadata?: { name?: string };
+  stats?: Record<string, { value?: number; displayValue?: string }>;
+}
+
+interface ApiResponse {
+  data?: {
+    platformInfo?: { platformSlug?: string };
+    segments?: ApiSegment[];
   };
 }
 
-export function parseTrackerProfile(html: string): Omit<TrackerSnapshot, 'timestampUtc' | 'playerId'> {
-  const $ = cheerio.load(html);
-  const raw = $('#__NEXT_DATA__').first().text();
-  if (!raw) throw new ParseError('missing __NEXT_DATA__ script tag', html.slice(0, 500));
-
-  let data: NextDataShape;
+export function parseTrackerProfile(json: string): Omit<TrackerSnapshot, 'timestampUtc' | 'playerId'> {
+  let data: ApiResponse;
   try {
-    data = JSON.parse(raw);
+    data = JSON.parse(json);
   } catch (e) {
-    throw new ParseError(`__NEXT_DATA__ not valid JSON: ${(e as Error).message}`);
+    throw new ParseError(`response not valid JSON: ${(e as Error).message}`);
   }
 
-  const profile = data.props?.pageProps?.profile;
-  if (!profile) throw new ParseError('profile missing from __NEXT_DATA__');
+  const profile = data?.data;
+  if (!profile) throw new ParseError('data missing from API response');
 
   const platformSlug = profile.platformInfo?.platformSlug;
   if (!platformSlug) throw new ParseError('platformSlug missing');
@@ -59,7 +44,7 @@ export function parseTrackerProfile(html: string): Omit<TrackerSnapshot, 'timest
   const playlists: PlaylistStats[] = [];
   for (const seg of profile.segments ?? []) {
     if (seg.type !== 'playlist') continue;
-    const label = seg.metadata?.name ?? seg.attributes?.playlist ?? '';
+    const label = seg.metadata?.name ?? '';
     const playlist = PLAYLIST_LABELS[label];
     if (!playlist) continue;
     playlists.push({
@@ -75,21 +60,8 @@ export function parseTrackerProfile(html: string): Omit<TrackerSnapshot, 'timest
     });
   }
 
+  // recentMatches requires a separate /matches/{platform}/{id} call — deferred to Plan 2.
   const recentMatches: RecentMatch[] = [];
-  for (const m of profile.recentMatches ?? []) {
-    if (!m.id || !m.timestamp || !m.playlist) continue;
-    const playlist = PLAYLIST_LABELS[m.playlist];
-    if (!playlist) continue;
-    const result = m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : null;
-    if (!result) continue;
-    recentMatches.push({
-      id: m.id,
-      ts: m.timestamp,
-      result,
-      mmrDelta: typeof m.mmrDelta === 'number' ? m.mmrDelta : 0,
-      playlist,
-    });
-  }
 
   return {
     platform: platformSlug as Platform,
