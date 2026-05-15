@@ -1,0 +1,38 @@
+name: Smoke test (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tracker_platform:
+        description: 'Tracker platform (epic|steam|psn|xbl|switch)'
+        required: true
+        default: 'epic'
+      tracker_id:
+        description: 'Tracker ID'
+        required: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Fetch and parse one profile
+        run: |
+          node --import tsx -e "
+            import('./src/tracker/client.js').then(async ({ fetchTrackerProfile }) => {
+              import('./src/tracker/parser.js').then(({ parseTrackerProfile }) => {
+                fetchTrackerProfile({ platform: '${{ inputs.tracker_platform }}', trackerId: '${{ inputs.tracker_id }}' })
+                  .then(html => {
+                    const parsed = parseTrackerProfile(html);
+                    console.log(JSON.stringify(parsed, null, 2));
+                  })
+                  .catch(e => { console.error(e); process.exit(1); });
+              });
+            });
+          "
