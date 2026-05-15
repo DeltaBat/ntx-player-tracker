@@ -2,11 +2,12 @@
 
 Cloud-hosted Google Sheet that tracks each NTX player's Rocket League grind hourly. No local infrastructure required.
 
-## What it does (Plan 1 · Foundation)
+## What it does
 
-- Hourly GitHub Actions cron scrapes tracker.gg for each rostered player.
-- Writes raw snapshot rows to `Snapshots_Tracker` in your sheet.
-- Apps Script assembler runs every 5 minutes, renders a `Today` tab with one card per player (1s/2s/3s rank, MMR, MMR Δ24h, status emoji).
+- Hourly scrape (via local Task Scheduler) hits `api.tracker.gg` for each rostered player's RL stats: 1s/2s/3s rank, MMR, games played, win streak.
+- Per-player Steam Web API call pulls playtime (total + last 2 weeks) for Rocket League / Kovaak's / Aim Lab, plus profile visibility and VAC ban status.
+- Both write append-only rows to `Snapshots_Tracker` / `Snapshots_Steam`.
+- Apps Script assembler runs every 5 minutes and renders the `Today` tab with one card per player: 1s/2s/3s rank/MMR/Δ24h/status, plus a Steam row showing hours + 2-week activity + 🔒 if private.
 
 ## Quickstart
 
