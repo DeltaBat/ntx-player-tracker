@@ -48,6 +48,35 @@ export interface RunLogEntry {
   errorSummary: string | null;
 }
 
+export interface SteamWatchlistEntry {
+  appId: number;
+  playtimeForeverMin: number;   // minutes, from Steam's playtime_forever
+  playtimeTwoWeeksMin: number;  // minutes, from Steam's playtime_2weeks (0 if absent)
+}
+
+export type SteamVisibility = 'public' | 'friends_only' | 'private' | 'unknown';
+
+export interface SteamProfile {
+  steamId: string;
+  visibility: SteamVisibility;
+  countryCode: string | null;
+  accountCreatedUtc: string | null;   // ISO 8601, from timecreated
+}
+
+export interface SteamBans {
+  vacBanCount: number;
+  communityBanned: boolean;
+}
+
+export interface SteamSnapshot {
+  timestampUtc: string;
+  playerId: string;
+  steamId: string;
+  profile: SteamProfile;
+  bans: SteamBans;
+  watchlist: SteamWatchlistEntry[];
+}
+
 export class ParseError extends Error {
   constructor(message: string, public html?: string) {
     super(message);
