@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { parseTrackerProfile } from '../src/tracker/parser.js';
+import { ParseError } from '../src/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ssl = readFileSync(join(__dirname, 'fixtures/tracker-epic-ssl.html'), 'utf8');
@@ -28,5 +29,17 @@ describe('parseTrackerProfile', () => {
     expect(first.id).toBeTypeOf('string');
     expect(['W', 'L']).toContain(first.result);
     expect(['1s', '2s', '3s']).toContain(first.playlist);
+  });
+});
+
+describe('parseTrackerProfile error handling', () => {
+  it('throws ParseError when __NEXT_DATA__ is missing', () => {
+    const html = readFileSync(join(__dirname, 'fixtures/tracker-malformed.html'), 'utf8');
+    expect(() => parseTrackerProfile(html)).toThrow(ParseError);
+  });
+
+  it('throws ParseError when __NEXT_DATA__ is not valid JSON', () => {
+    const html = `<html><script id="__NEXT_DATA__">{not json</script></html>`;
+    expect(() => parseTrackerProfile(html)).toThrow(/not valid JSON/);
   });
 });
