@@ -13,7 +13,7 @@ export interface FetchTrackerInput {
 
 export async function fetchTrackerProfile({ platform, trackerId }: FetchTrackerInput): Promise<string> {
   const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]!;
-  const url = `https://tracker.gg/rocket-league/profile/${platform}/${encodeURIComponent(trackerId)}/overview`;
+  const url = `https://rocketleague.tracker.network/rocket-league/profile/${platform}/${encodeURIComponent(trackerId)}/overview`;
   const res = await fetch(url, {
     headers: {
       'User-Agent': ua,
@@ -24,7 +24,7 @@ export async function fetchTrackerProfile({ platform, trackerId }: FetchTrackerI
       'Sec-Ch-Ua-Platform': '"Windows"',
     },
   });
-  if (!res.ok) throw new Error(`tracker.gg returned ${res.status} for ${platform}/${trackerId}`);
+  if (!res.ok) throw new Error(`tracker.network returned ${res.status} for ${platform}/${trackerId}`);
   return await res.text();
 }
 
