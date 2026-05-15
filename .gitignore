@@ -4,3 +4,5 @@ dist/
 .env
 .env.local
 *.local.json
+.gcp-key.json
+logs/
