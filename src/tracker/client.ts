@@ -1,29 +1,38 @@
 // src/tracker/client.ts
 import type { Platform } from '../types.js';
 
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+];
+
 export interface FetchTrackerInput {
   platform: Platform;
   trackerId: string;
 }
 
 export async function fetchTrackerProfile({ platform, trackerId }: FetchTrackerInput): Promise<string> {
-  const key = process.env.TRACKER_API_KEY;
-  if (!key) throw new Error('TRACKER_API_KEY env var is required');
-
-  const url = `https://public-api.tracker.gg/v2/rocket-league/standard/profile/${platform}/${encodeURIComponent(trackerId)}`;
+  const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]!;
+  const targetUrl = `https://rocketleague.tracker.network/rocket-league/profile/${platform}/${encodeURIComponent(trackerId)}/overview`;
+  const proxyKey = process.env.SCRAPERAPI_KEY;
+  const url = proxyKey
+    ? `https://api.scraperapi.com/?api_key=${proxyKey}&url=${encodeURIComponent(targetUrl)}&country_code=us`
+    : targetUrl;
   const res = await fetch(url, {
     headers: {
-      'TRN-Api-Key': key,
-      'Accept': 'application/json',
+      'User-Agent': ua,
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Sec-Ch-Ua': '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"',
     },
   });
-  if (!res.ok) {
-    throw new Error(`tracker API returned ${res.status} for ${platform}/${trackerId}`);
-  }
+  if (!res.ok) throw new Error(`tracker.network returned ${res.status} for ${platform}/${trackerId}`);
   return await res.text();
 }
 
 export function jitterMs(): number {
-  // 1-3s between players — TRN API rate limit is ~60/min so this is generous
-  return 1_000 + Math.floor(Math.random() * 2_000);
+  // 30–120s between players
+  return 30_000 + Math.floor(Math.random() * 90_000);
 }

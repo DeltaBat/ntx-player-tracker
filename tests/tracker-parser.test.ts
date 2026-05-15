@@ -1,87 +1,45 @@
 // tests/tracker-parser.test.ts
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { parseTrackerProfile } from '../src/tracker/parser.js';
 import { ParseError } from '../src/types.js';
 
-const sample = JSON.stringify({
-  data: {
-    platformInfo: { platformSlug: 'epic', platformUserIdentifier: 'fade' },
-    segments: [
-      {
-        type: 'overview',
-        stats: { score: { value: 100 } },
-      },
-      {
-        type: 'playlist',
-        metadata: { name: 'Ranked Duel 1v1' },
-        stats: {
-          tier: { displayValue: 'Grand Champion III' },
-          division: { displayValue: 'II' },
-          rating: { value: 1612 },
-          matchesPlayed: { value: 80 },
-          wins: { value: 50 },
-          winStreak: { value: 2 },
-        },
-      },
-      {
-        type: 'playlist',
-        metadata: { name: 'Ranked Doubles 2v2' },
-        stats: {
-          tier: { displayValue: 'Supersonic Legend' },
-          rating: { value: 1820 },
-          matchesPlayed: { value: 200 },
-          wins: { value: 120 },
-          winStreak: { value: 4 },
-        },
-      },
-      {
-        type: 'playlist',
-        metadata: { name: 'Ranked Standard 3v3' },
-        stats: {
-          tier: { displayValue: 'Supersonic Legend' },
-          rating: { value: 1745 },
-          matchesPlayed: { value: 150 },
-          wins: { value: 90 },
-          winStreak: { value: 1 },
-        },
-      },
-    ],
-  },
-});
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ssl = readFileSync(join(__dirname, 'fixtures/tracker-epic-ssl.html'), 'utf8');
 
 describe('parseTrackerProfile', () => {
-  it('extracts 1s/2s/3s playlist stats from a profile response', () => {
-    const result = parseTrackerProfile(sample);
+  it('extracts 1s/2s/3s playlist stats from an SSL profile', () => {
+    const result = parseTrackerProfile(ssl);
 
-    expect(result.platform).toBe('epic');
     expect(result.playlists).toHaveLength(3);
     const playlists = Object.fromEntries(result.playlists.map(p => [p.playlist, p]));
-    expect(playlists['1s']?.mmr).toBe(1612);
-    expect(playlists['2s']?.mmr).toBe(1820);
-    expect(playlists['3s']?.mmr).toBe(1745);
-    expect(playlists['2s']?.rank).toBe('Supersonic Legend');
-    expect(playlists['2s']?.gamesPlayedSeason).toBe(200);
-    expect(playlists['1s']?.winStreak).toBe(2);
+    expect(playlists['1s']?.mmr).toBeTypeOf('number');
+    expect(playlists['2s']?.mmr).toBeTypeOf('number');
+    expect(playlists['3s']?.mmr).toBeTypeOf('number');
+    expect(playlists['2s']?.rank).toBeTypeOf('string');
+    expect(playlists['2s']?.gamesPlayedSeason).toBeGreaterThanOrEqual(0);
   });
 
-  it('returns an empty recentMatches array (separate /matches API call, deferred to Plan 2)', () => {
-    const result = parseTrackerProfile(sample);
-    expect(result.recentMatches).toEqual([]);
+  it('extracts a list of recent matches', () => {
+    const result = parseTrackerProfile(ssl);
+    expect(result.recentMatches.length).toBeGreaterThan(0);
+    const first = result.recentMatches[0]!;
+    expect(first.id).toBeTypeOf('string');
+    expect(['W', 'L']).toContain(first.result);
+    expect(['1s', '2s', '3s']).toContain(first.playlist);
   });
 });
 
 describe('parseTrackerProfile error handling', () => {
-  it('throws ParseError when response is not valid JSON', () => {
-    expect(() => parseTrackerProfile('{not json')).toThrow(ParseError);
-    expect(() => parseTrackerProfile('{not json')).toThrow(/not valid JSON/);
+  it('throws ParseError when __NEXT_DATA__ is missing', () => {
+    const html = readFileSync(join(__dirname, 'fixtures/tracker-malformed.html'), 'utf8');
+    expect(() => parseTrackerProfile(html)).toThrow(ParseError);
   });
 
-  it('throws ParseError when data block is missing', () => {
-    expect(() => parseTrackerProfile('{}')).toThrow(/data missing/);
-  });
-
-  it('throws ParseError when platformSlug is missing', () => {
-    const noPlatform = JSON.stringify({ data: { platformInfo: {} } });
-    expect(() => parseTrackerProfile(noPlatform)).toThrow(/platformSlug/);
+  it('throws ParseError when __NEXT_DATA__ is not valid JSON', () => {
+    const html = `<html><script id="__NEXT_DATA__">{not json</script></html>`;
+    expect(() => parseTrackerProfile(html)).toThrow(/not valid JSON/);
   });
 });

@@ -1,53 +1,36 @@
 // tests/tracker-client.test.ts
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchTrackerProfile } from '../src/tracker/client.js';
 
 describe('fetchTrackerProfile', () => {
-  const originalKey = process.env.TRACKER_API_KEY;
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    process.env.TRACKER_API_KEY = 'test-key-abc';
-  });
-  afterEach(() => {
-    if (originalKey === undefined) delete process.env.TRACKER_API_KEY;
-    else process.env.TRACKER_API_KEY = originalKey;
-  });
+  beforeEach(() => vi.restoreAllMocks());
 
-  it('sends TRN-Api-Key header and hits the public API URL', async () => {
+  it('sends a realistic Chrome User-Agent', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('{"data":{}}', { status: 200 })
+      new Response('<html></html>', { status: 200 })
     );
 
-    await fetchTrackerProfile({ platform: 'epic', trackerId: 'fade.シ' });
+    await fetchTrackerProfile({ platform: 'epic', trackerId: 'Squishy' });
 
     expect(fetchSpy).toHaveBeenCalledOnce();
-    const [url, init] = fetchSpy.mock.calls[0]!;
-    expect(String(url)).toContain('https://public-api.tracker.gg/v2/rocket-league/standard/profile/epic/');
-    expect(String(url)).toContain(encodeURIComponent('fade.シ'));
-    const headers = (init as RequestInit).headers as Record<string, string>;
-    expect(headers['TRN-Api-Key']).toBe('test-key-abc');
-    expect(headers['Accept']).toBe('application/json');
+    const init = fetchSpy.mock.calls[0]![1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers['User-Agent']).toMatch(/Chrome\/\d+/);
+    expect(headers['Accept-Language']).toBe('en-US,en;q=0.9');
   });
 
-  it('throws when TRACKER_API_KEY is missing', async () => {
-    delete process.env.TRACKER_API_KEY;
-    await expect(
-      fetchTrackerProfile({ platform: 'epic', trackerId: 'x' })
-    ).rejects.toThrow(/TRACKER_API_KEY/);
-  });
-
-  it('throws on non-200 (e.g., 403/429)', async () => {
+  it('throws on Cloudflare 403', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('blocked', { status: 403 }));
     await expect(
-      fetchTrackerProfile({ platform: 'epic', trackerId: 'x' })
+      fetchTrackerProfile({ platform: 'epic', trackerId: 'Squishy' })
     ).rejects.toThrow(/403/);
   });
 
   it('returns response body on 200', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('{"data":{"platformInfo":{}}}', { status: 200 })
+      new Response('<html>profile</html>', { status: 200 })
     );
-    const body = await fetchTrackerProfile({ platform: 'epic', trackerId: 'x' });
-    expect(body).toContain('platformInfo');
+    const body = await fetchTrackerProfile({ platform: 'epic', trackerId: 'Squishy' });
+    expect(body).toContain('profile');
   });
 });
