@@ -286,12 +286,14 @@ function assemble() {
     if (steam && steam.vac > 0) subtitleParts.push('⚠ VAC×' + steam.vac);
     var subtitle = subtitleParts.length ? subtitleParts.join('  ·  ') : 'no data yet';
 
-    // Player name banner row (rich text: colored dot + name)
+    // Player name banner row (rich text: colored dot + name).
+    // Text layout: "  " + dot (1 char) + "  " + displayName  =>  total length = 5 + displayName.length
+    var headerText = '  ' + activityDot + '  ' + displayName;
     var headerRichText = SpreadsheetApp.newRichTextValue()
-      .setText('  ' + activityDot + '  ' + displayName)
-      .setTextStyle(0, 5,
+      .setText(headerText)
+      .setTextStyle(2, 3,
         SpreadsheetApp.newTextStyle().setForegroundColor(dotColor).setFontSize(20).setBold(true).build())
-      .setTextStyle(5, 5 + 2 + displayName.length,
+      .setTextStyle(5, headerText.length,
         SpreadsheetApp.newTextStyle().setForegroundColor(C.cardHeaderFg).setFontSize(16).setBold(true).build())
       .build();
     today.getRange(rowCursor, 1, 1, maxC).merge()
